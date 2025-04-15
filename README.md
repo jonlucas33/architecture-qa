@@ -24,10 +24,8 @@ A proposta visa padronizar ambientes de teste isolados por tarefa, melhorar o fl
 
 ## 🌐 Deploys Automáticos com Cloudflare Pages
 
-- Acesse: Workers & Pages > Pages > Projeto
-- Vá em Settings > Build & Deployments > Preview deployments
 - Adicione: `deploy-*`, `qa-*`
-- Salve
+- Salvar
 
 ## 🚀 Criando Ambiente QA Manualmente
 
