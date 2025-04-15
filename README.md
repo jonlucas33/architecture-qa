@@ -68,3 +68,82 @@ Link gerado: `https://qa--222.app-c6w.pages.dev`
 - Evita sobrescrita de código
 - QA aprova antes de merge geral
 - Escalável para times grandes
+
+--------------------------------------------------
+
+
+# Estratégia Alternativa de QA com Script Automatizado (sem Cloudflare Pages)
+
+## 🔹 Contexto
+Esta abordagem apresenta uma alternativa ao fluxo baseado em ambientes automatizados via Cloudflare Pages. Aqui, o foco é facilitar o trabalho do QA usando **um script inteligente** que posiciona automaticamente o repositório local do desenvolvedor ou QA na branch correta, apontando para o commit certo no submódulo, **sem a necessidade de conhecer Git, submodules ou criar branches adicionais**.
+
+## 🚀 Objetivo do Script
+Permitir que o QA rode um simples comando com o número da task e seja automaticamente posicionado na branch correta do `app`, com o `teacher-journey` apontando para a branch específica da task.
+
+## 🔁 Cenário
+- O PR da task já foi criado:
+  - `fix-#222` (teacher-journey) → `fix-#205`
+  - `fix-#222` (app) → `deploy-#205`
+- A branch `fix-#222` no app **referencia a branch `fix-#222` do submodule**
+- O QA não precisa mais criar uma branch `qa-#222`
+
+## 🛠 Script: `scripts/qa-checkout.sh`
+
+```bash
+#!/bin/bash
+
+TASK_ID=$1
+
+if [ -z "$TASK_ID" ]; then
+  echo "Uso: ./scripts/qa-checkout.sh 222"
+  exit 1
+fi
+
+FEATURE_BRANCH="fix-#$TASK_ID"
+
+echo "\n🔍 Alternando para a branch $FEATURE_BRANCH no app..."
+git fetch origin
+git checkout $FEATURE_BRANCH || {
+  echo "❌ Branch $FEATURE_BRANCH não encontrada. Verifique se o PR foi criado."
+  exit 1
+}
+git pull origin $FEATURE_BRANCH
+
+echo "\n🔁 Acessando o submodule teacher-journey..."
+cd src/modules/teacher-journey
+git fetch origin
+git checkout $FEATURE_BRANCH || {
+  echo "❌ Branch $FEATURE_BRANCH não encontrada no submodule."
+  exit 1
+}
+git pull origin $FEATURE_BRANCH
+cd ../../..
+
+echo "\n✅ Ambiente configurado com sucesso para task #$TASK_ID"
+echo "Você está agora na branch $FEATURE_BRANCH do app e do submodule."
+```
+
+## ▶️ Como o QA usa
+
+1. Clonar o repositório normalmente (se ainda não tiver)
+2. Inicializar os submodules:
+```bash
+git submodule update --init --recursive
+```
+3. Rodar o script:
+```bash
+./scripts/qa-checkout.sh 222
+```
+
+## ✅ Benefícios
+
+- Sem necessidade de criar branch `qa-#xxx`
+- QA sempre testa diretamente o que está no PR da task
+- Evita divergência entre app e submodule
+- Simples, direto e seguro para qualquer membro da equipe
+
+## ⚠️ Observações
+
+- O script não cria branches nem faz commits
+- Apenas sincroniza localmente o estado correto para testes
+
