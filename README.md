@@ -69,81 +69,90 @@ Link gerado: `https://qa--222.app-c6w.pages.dev`
 - QA aprova antes de merge geral
 - Escalável para times grandes
 
---------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-# Estratégia Alternativa de QA com Script Automatizado (sem Cloudflare Pages)
 
-## 🔹 Contexto
-Esta abordagem apresenta uma alternativa ao fluxo baseado em ambientes automatizados via Cloudflare Pages. Aqui, o foco é facilitar o trabalho do QA usando **um script inteligente** que posiciona automaticamente o repositório local do desenvolvedor ou QA na branch correta, apontando para o commit certo no submódulo, **sem a necessidade de conhecer Git, submodules ou criar branches adicionais**.
+# Estratégia de QA com Script Automatizado no PowerShell (sem Cloudflare Pages)
 
-## 🚀 Objetivo do Script
-Permitir que o QA rode um simples comando com o número da task e seja automaticamente posicionado na branch correta do `app`, com o `teacher-journey` apontando para a branch específica da task.
+## 🧩 Visão Geral
 
-## 🔁 Cenário
-- O PR da task já foi criado:
-  - `fix-#222` (teacher-journey) → `fix-#205`
-  - `fix-#222` (app) → `deploy-#205`
-- A branch `fix-#222` no app **referencia a branch `fix-#222` do submodule**
-- O QA não precisa mais criar uma branch `qa-#222`
+Esta estratégia permite que membros do time de QA posicionem automaticamente o ambiente local para testar uma task específica, sem precisar entender de Git, submodules ou criar branches adicionais. Usamos um script `.ps1` que troca para a branch correta do app e ajusta o submodule automaticamente.
 
-## 🛠 Script: `scripts/qa-checkout.sh`
+---
 
-```bash
-#!/bin/bash
+## 🎯 Objetivo
 
-TASK_ID=$1
+- Automatizar o checkout de branches específicas (ex: `fix-#222`)
+- Alinhar o submodule (`teacher-journey`) com a mesma branch
+- Permitir testes locais diretamente a partir do PR da task
+- Evitar criação de branches `qa-#XXX`
 
-if [ -z "$TASK_ID" ]; then
-  echo "Uso: ./scripts/qa-checkout.sh 222"
-  exit 1
-fi
+---
 
-FEATURE_BRANCH="fix-#$TASK_ID"
+## 🛠 Script PowerShell: `scripts/qa-checkout.ps1`
 
-echo "\n🔍 Alternando para a branch $FEATURE_BRANCH no app..."
-git fetch origin
-git checkout $FEATURE_BRANCH || {
-  echo "❌ Branch $FEATURE_BRANCH não encontrada. Verifique se o PR foi criado."
-  exit 1
+```powershell
+param(
+    [string]$TaskId
+)
+
+if (-not $TaskId) {
+    Write-Host "Uso: ./scripts/qa-checkout.ps1 -TaskId 222"
+    exit
 }
-git pull origin $FEATURE_BRANCH
 
-echo "\n🔁 Acessando o submodule teacher-journey..."
-cd src/modules/teacher-journey
+$branchName = "fix-#$TaskId"
+
+# Salva o caminho atual
+$projectRoot = Get-Location
+
+Write-Host "`n Alternando para a branch $branchName no app..."
 git fetch origin
-git checkout $FEATURE_BRANCH || {
-  echo "❌ Branch $FEATURE_BRANCH não encontrada no submodule."
-  exit 1
-}
-git pull origin $FEATURE_BRANCH
-cd ../../..
+git checkout $branchName
+git pull origin $branchName
 
-echo "\n✅ Ambiente configurado com sucesso para task #$TASK_ID"
-echo "Você está agora na branch $FEATURE_BRANCH do app e do submodule."
+Write-Host "`n Acessando o submodule teacher-journey..."
+Set-Location "src/modules/teacher-journey"
+git fetch origin
+git checkout $branchName
+git pull origin $branchName
+
+# Volta para o diretório do app
+Set-Location $projectRoot
+
+Write-Host "`n Ambiente configurado com sucesso para task #$TaskId"
 ```
 
-## ▶️ Como o QA usa
+---
 
-1. Clonar o repositório normalmente (se ainda não tiver)
-2. Inicializar os submodules:
-```bash
+## ▶️ Como usar
+
+1. Certifique-se de que o repositório está clonado e com submodules:
+```powershell
 git submodule update --init --recursive
 ```
-3. Rodar o script:
-```bash
-./scripts/qa-checkout.sh 222
+
+2. Execute o script com o número da task:
+```powershell
+.\scripts\qa-checkout.ps1 -TaskId 222
 ```
+
+---
 
 ## ✅ Benefícios
 
-- Sem necessidade de criar branch `qa-#xxx`
-- QA sempre testa diretamente o que está no PR da task
-- Evita divergência entre app e submodule
-- Simples, direto e seguro para qualquer membro da equipe
+- QA não precisa entender Git ou submodules
+- Não é necessário criar branch `qa-#XXX`
+- Garantia de ambiente alinhado com os PRs abertos
+- Evita conflitos e facilita validação isolada
+
+---
 
 ## ⚠️ Observações
 
-- O script não cria branches nem faz commits
-- Apenas sincroniza localmente o estado correto para testes
+- O script apenas troca branches — não faz commits nem push
+- Requer que as branches `fix-#XXX` já existam localmente ou no origin
+
 
