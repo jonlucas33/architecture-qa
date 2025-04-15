@@ -155,4 +155,99 @@ git submodule update --init --recursive
 - O script apenas troca branches — não faz commits nem push
 - Requer que as branches `fix-#XXX` já existam localmente ou no origin
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+# 🧠 Entendendo o 'Desencabeçamento' de Submodules no Git
+
+## ❓ O que é o 'desencabeçamento'?
+
+Em projetos com **Git Submodules**, como no caso do `app` que usa `teacher-journey` como submódulo, o repositório principal **não acompanha branches** do submodule. Ele **aponta para um commit fixo**.
+
+> ❗ Isso significa que, mesmo que a branch `fix-#222` seja mergeada em `fix-#205` no submódulo, o `app` continuará apontando para o commit anterior se não for atualizado manualmente.
+
+---
+
+## 💥 Exemplo real do problema
+
+### Situação:
+
+- `deploy-#205` (app) aponta para `fix-#205` (submódulo)
+- `fix-#222` (submódulo) → PR → `fix-#205` ✅ mergeado
+- `fix-#222` (app) → PR → `deploy-#205` ✅ mergeado
+
+### Resultado:
+
+Mesmo que `fix-#222` tenha sido incorporado em `fix-#205` (submódulo), ao mergear `fix-#222` (app) em `deploy-#205`, **o `app` passa a apontar para o commit antigo (`fix-#222`)**, e **não para o topo de `fix-#205`**.
+
+---
+
+## ✅ Como evitar esse comportamento?
+
+### 🔹 1. **Nunca mergear branch de feature no app**
+Espere que o merge no submódulo aconteça primeiro.
+
+Depois, no app:
+
+```bash
+cd src/modules/teacher-journey
+git checkout fix-#205
+git pull origin fix-#205
+cd ../../..
+git add src/modules/teacher-journey
+git commit -m "Atualiza submodule para topo de fix-#205"
+```
+
+---
+
+### 🔹 2. **Script pós-merge**
+Crie um script para garantir que o submodule esteja sempre alinhado com a branch agrupadora (`fix-#205`):
+
+```bash
+#!/bin/bash
+BRANCH=$1
+
+cd src/modules/teacher-journey
+git checkout $BRANCH
+git pull origin $BRANCH
+cd ../../..
+git add src/modules/teacher-journey
+git commit -m "Atualiza submodule para topo de $BRANCH"
+```
+
+Uso:
+
+```bash
+./scripts/update-submodule.sh fix-#205
+```
+
+---
+
+### 🔹 3. **Automatização via CI/CD (Avançado)**
+
+Você pode configurar um workflow no GitHub Actions que:
+
+- Roda após merge de PRs na branch `fix-#205` do submódulo
+- Cria automaticamente um commit no app atualizando o submodule
+- Garante que o `deploy-#205` sempre aponta para o commit mais recente
+
+#### Exemplo de fluxo:
+
+1. PR mergeado em `deploy-#205` (submodule)
+2. Seguido por um reapontamento automático
+3. O CI do app:
+   - Clona o projeto
+   - Atualiza o submodule para `fix-#205`
+   - Comita essa atualização no `deploy-#205`
+
+> Isso exige um token com permissões de commit no repositório `app`.
+
+---
+
+## ✅ Conclusão
+
+O Git com submodules **não segue branches** — ele salva **commits fixos**. Para garantir que sua branch principal (`deploy-#205`) aponte para o commit correto após merges, é necessário:
+
+- Atualizar o submodule manualmente no app
+- Ou automatizar isso via script ou CI
 
